@@ -1,3 +1,25 @@
+# Build AmneziaWG
+
+FROM golang:1.20 as awg
+ARG AWG_RELEASE="0.1.8"
+RUN wget https://github.com/amnezia-vpn/amneziawg-go/archive/refs/tags/v${AWG_RELEASE}.tar.gz && \
+    tar -xvzf v${AWG_RELEASE}.tar.gz && \
+    cd amneziawg-go-${AWG_RELEASE} && \
+    go mod download && \
+    go mod verify && \
+    go build -ldflags '-linkmode external -extldflags "-fno-PIC -static"' -v -o /usr/bin
+
+# Build AmneziaWG tools
+
+FROM alpine:3.15 as awg-tools
+ARG AWGTOOLS_RELEASE="1.0.20231215"
+RUN apk --no-cache add linux-headers build-base bash && \
+    wget https://github.com/amnezia-vpn/amneziawg-tools/archive/refs/tags/v${AWGTOOLS_RELEASE}.zip && \
+    unzip v${AWGTOOLS_RELEASE}.zip && \
+    cd amneziawg-tools-${AWGTOOLS_RELEASE}/src && \
+    make -e LDFLAGS=-static && \
+    make install
+
 # There's an issue with node:20-alpine.
 # Docker deployment is canceled after 25< minutes.
 
@@ -42,6 +64,10 @@ EXPOSE 51821/tcp
 
 # Set Environment
 ENV DEBUG=Server,WireGuard
+
+# Copy AmneziaWG binaries
+COPY --from=awg /usr/bin/amnezia-wg /usr/bin/wireguard-go
+COPY --from=awg-tools /usr/bin/wg /usr/bin/wg-quick /usr/bin/
 
 # Run Web UI
 WORKDIR /app
